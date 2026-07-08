@@ -1,0 +1,242 @@
+// Eagles Budget CRM & Financial Analytics System
+// Prisma schema — PostgreSQL
+//
+// Design principle: store BOTH the raw uploaded data (uploaded_files.rawRows)
+// AND the normalized/processed data (monthly_site_budgets, monthly_summaries)
+// so any month can be audited or fully reprocessed later.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  FINANCE
+  OPERATIONS
+  VIEWER
+}
+
+enum UploadStatus {
+  UPLOADED // file saved, not yet parsed
+  PROCESSED // parsed + normalized rows written
+  FAILED // parsing/validation failed (see errorLog)
+}
+
+/// Performance bucket for a site in a given month, derived from
+/// standardAchievementPercentage (net / standard * 100).
+enum PerformanceStatus {
+  ABOVE_STANDARD // >= 100%
+  NEAR_STANDARD // 90% .. <100%
+  BELOW_STANDARD // 70% .. <90%
+  CRITICAL // < 70%
+}
+
+enum ExpenseType {
+  ONE_TIME
+  RECURRING
+}
+
+// ---------------------------------------------------------------------------
+// users
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(VIEWER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  uploadedFiles     UploadedFile[]
+  standardsAuthored StandardHistory[]
+  expensesCreated   ExpenseItem[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// uploaded_files  (raw file registry + raw parsed payload)
+// ---------------------------------------------------------------------------
+
+model UploadedFile {
+  id           String       @id @default(cuid())
+  originalName String
+  storedPath   String // path on disk to the original .xlsx
+  fileSize     Int
+  mimeType     String?
+  month        Int // 1..12  (the business month this sheet represents)
+  year         Int
+  status       UploadStatus @default(UPLOADED)
+  /// Raw rows exactly as parsed from the Excel sheet (audit / reprocess source).
+  rawRows      Json?
+  /// Human-readable validation / parse errors when status = FAILED.
+  errorLog     String?
+  rowCount     Int          @default(0)
+
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  processedAt DateTime?
+
+  budgets MonthlySiteBudget[]
+
+  @@index([year, month])
+  @@map("uploaded_files")
+}
+
+// ---------------------------------------------------------------------------
+// sites
+// ---------------------------------------------------------------------------
+
+model Site {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  clientName      String?
+  siteType        String? // e.g. "Commercial", "Residential", "Industrial"
+  isActive        Boolean  @default(true)
+  /// Fallback standard target used when no per-month standard is defined.
+  defaultStandard Decimal  @default(0) @db.Decimal(14, 2)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  budgets    MonthlySiteBudget[]
+  standards  StandardHistory[]
+
+  @@map("sites")
+}
+
+// ---------------------------------------------------------------------------
+// monthly_site_budgets  (normalized, per-site, per-month processed data)
+// ---------------------------------------------------------------------------
+
+model MonthlySiteBudget {
+  id    String @id @default(cuid())
+  month Int
+  year  Int
+
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  uploadedFileId String?
+  uploadedFile   UploadedFile? @relation(fields: [uploadedFileId], references: [id], onDelete: SetNull)
+
+  // ---- Inputs (from the Excel sheet) ----
+  contractValue     Decimal @default(0) @db.Decimal(14, 2)
+  grossCollection   Decimal @default(0) @db.Decimal(14, 2)
+  salaries          Decimal @default(0) @db.Decimal(14, 2)
+  operatingExpenses Decimal @default(0) @db.Decimal(14, 2)
+  /// The standard target applied to this site/month (resolved from standards
+  /// history, the sheet, or the site default at processing time).
+  standard          Decimal @default(0) @db.Decimal(14, 2)
+
+  // ---- Derived / stored for fast querying & audit ----
+  collectionAfter14            Decimal  @default(0) @db.Decimal(14, 2)
+  vat14Value                   Decimal  @default(0) @db.Decimal(14, 2)
+  net                          Decimal  @default(0) @db.Decimal(14, 2)
+  varianceVsStandard           Decimal  @default(0) @db.Decimal(14, 2)
+  standardAchievementPercentage Decimal? @db.Decimal(9, 2)
+  netMarginPercentage          Decimal? @db.Decimal(9, 2)
+  collectionGap                Decimal  @default(0) @db.Decimal(14, 2)
+  status                       PerformanceStatus @default(CRITICAL)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One record per site per month.
+  @@unique([siteId, year, month])
+  @@index([year, month])
+  @@map("monthly_site_budgets")
+}
+
+// ---------------------------------------------------------------------------
+// expense_items  (general / company-level expenses, not tied to a single site)
+// ---------------------------------------------------------------------------
+
+model ExpenseItem {
+  id          String      @id @default(cuid())
+  month       Int
+  year        Int
+  category    String // Office Salaries, Uniforms, Equipment, Rent, Admin, Transport...
+  description String?
+  amount      Decimal     @db.Decimal(14, 2)
+  type        ExpenseType @default(ONE_TIME)
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([year, month])
+  @@map("expense_items")
+}
+
+// ---------------------------------------------------------------------------
+// monthly_summaries  (precomputed company-level rollup per month)
+// ---------------------------------------------------------------------------
+
+model MonthlySummary {
+  id    String @id @default(cuid())
+  month Int
+  year  Int
+
+  totalContractValue    Decimal @default(0) @db.Decimal(16, 2)
+  totalGrossCollection  Decimal @default(0) @db.Decimal(16, 2)
+  totalCollectionAfter14 Decimal @default(0) @db.Decimal(16, 2)
+  totalSalaries         Decimal @default(0) @db.Decimal(16, 2)
+  totalOperatingExpenses Decimal @default(0) @db.Decimal(16, 2)
+  totalNet              Decimal @default(0) @db.Decimal(16, 2)
+  totalStandard         Decimal @default(0) @db.Decimal(16, 2)
+  totalVarianceVsStandard Decimal @default(0) @db.Decimal(16, 2)
+  standardAchievementPercentage Decimal? @db.Decimal(9, 2)
+  /// General (company-level) expenses total for the month.
+  totalGeneralExpenses  Decimal @default(0) @db.Decimal(16, 2)
+  /// totalNet - totalGeneralExpenses. Site-level standard comparison stays on
+  /// totalNet (before general expenses) per the business rule.
+  finalNetAfterGeneral  Decimal @default(0) @db.Decimal(16, 2)
+  siteCount             Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month])
+  @@map("monthly_summaries")
+}
+
+// ---------------------------------------------------------------------------
+// standards_history  (source of truth for per-site/month standards + audit)
+//   The most recent record (by changeDate) for a (site, year, month) is the
+//   active standard. Older records are retained for history.
+// ---------------------------------------------------------------------------
+
+model StandardHistory {
+  id            String   @id @default(cuid())
+  siteId        String
+  site          Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  month         Int
+  year          Int
+  standardValue Decimal  @db.Decimal(14, 2)
+  changeReason  String?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  changeDate DateTime @default(now())
+
+  @@index([siteId, year, month])
+  @@map("standards_history")
+}

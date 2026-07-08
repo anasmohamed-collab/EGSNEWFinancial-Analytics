@@ -1,0 +1,25 @@
+# One-command local PostgreSQL for Eagles Budget CRM.
+#   docker compose up -d      # start
+#   docker compose down       # stop (keeps data)
+#   docker compose down -v    # stop and wipe data
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: eagles_budget_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eagles
+      POSTGRES_PASSWORD: eagles_secret
+      POSTGRES_DB: eagles_budget
+    ports:
+      - "5432:5432"
+    volumes:
+      - eagles_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eagles -d eagles_budget"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  eagles_pgdata:
