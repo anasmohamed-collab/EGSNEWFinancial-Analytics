@@ -166,8 +166,43 @@ const en: Dictionary = {
     uploadedByCol: "Uploaded by",
     statuses: {
       UPLOADED: "Uploaded",
+      PROCESSING: "Processing",
       PROCESSED: "Processed",
       FAILED: "Failed",
+    },
+    processFailed: "The file could not be processed. See the errors below.",
+    fields: {
+      siteName: "Site name",
+      clientName: "Client",
+      contractValue: "Contract",
+      grossCollection: "Gross collection",
+      salaries: "Salaries",
+      operatingExpenses: "Operating expenses",
+      net: "Net",
+      standard: "Standard",
+    },
+    errors: {
+      noFile: "No file selected.",
+      badMonth: "Select a valid month.",
+      badYear: "Select a valid year.",
+      tooLarge: "File exceeds the 10 MB limit.",
+      badType: "Only Excel files (.xlsx or .xls) are accepted.",
+      unauthorized: "Unauthorized.",
+      viewerForbidden: "Viewers cannot upload sheets.",
+      noWorksheet: "The workbook contains no worksheets.",
+      noDataRows: "The worksheet has no data.",
+      noHeaderRow:
+        "Could not find the required header row (Site name, Gross collection, Salaries, Operating expenses).",
+      missingColumns: "Missing required column(s): {columns}. Detected headers: {detected}.",
+      rowMissingSite: "Row {row}: missing site name — row skipped.",
+      rowInvalidNumber: "Row {row} ({site}): invalid numeric values in: {fields}.",
+      noValidRows: "No valid site rows were found in the sheet.",
+      netMismatch:
+        "Row {row} ({site}): the sheet Net differs from the computed Net — the computed value was used.",
+      standardMissing: "Row {row} ({site}): no standard — the default/previous value was used.",
+      standardColumnMissing:
+        "No 'Standard' column in the sheet — each site's predefined standard was used.",
+      processingError: "An error occurred while normalizing the data.",
     },
   },
   analysis: {

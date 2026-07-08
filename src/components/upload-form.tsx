@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
+import { UploadCloud, XCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,9 +10,7 @@ import { MONTH_VALUES } from "@/lib/constants";
 import { useI18n } from "@/i18n/provider";
 import { monthName } from "@/i18n/format";
 
-type Result =
-  | { kind: "success"; siteCount: number; month: number; year: number; warnings: string[] }
-  | { kind: "error"; message: string; validationErrors?: string[] };
+type Result = { kind: "error"; message: string; validationErrors?: string[] };
 
 export function UploadForm() {
   const router = useRouter();
@@ -52,15 +50,10 @@ export function UploadForm() {
           validationErrors: data.validationErrors,
         });
       } else {
-        setResult({
-          kind: "success",
-          siteCount: data.siteCount,
-          month: data.month,
-          year: data.year,
-          warnings: data.warnings ?? [],
-        });
+        // Success → go straight to the generated monthly analysis.
         setFile(null);
         if (inputRef.current) inputRef.current.value = "";
+        router.push(`/dashboard?month=${data.month}&year=${data.year}`);
         router.refresh();
       }
     } catch {
@@ -122,31 +115,6 @@ export function UploadForm() {
             {loading ? t.processing : t.button}
           </Button>
         </form>
-
-        {result?.kind === "success" && (
-          <div className="mt-5 flex items-start gap-3 rounded-md bg-emerald-50 p-4 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-            <div>
-              <p className="font-medium">
-                {t.successPrefix} {result.siteCount} {t.successSites}{" "}
-                {monthName(result.month, locale)} {result.year}.
-              </p>
-              {result.warnings.length > 0 && (
-                <ul className="mt-2 list-disc space-y-1 pe-5 text-amber-700 dark:text-amber-400">
-                  {result.warnings.map((w, i) => (
-                    <li key={i}>{w}</li>
-                  ))}
-                </ul>
-              )}
-              <a
-                href={`/dashboard?month=${result.month}&year=${result.year}`}
-                className="mt-2 inline-block font-medium underline"
-              >
-                {t.viewDashboard}
-              </a>
-            </div>
-          </div>
-        )}
 
         {result?.kind === "error" && (
           <div className="mt-5 flex items-start gap-3 rounded-md bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-300">

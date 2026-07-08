@@ -26,9 +26,10 @@ enum Role {
 }
 
 enum UploadStatus {
-  UPLOADED // file saved, not yet parsed
-  PROCESSED // parsed + normalized rows written
-  FAILED // parsing/validation failed (see errorLog)
+  UPLOADED // file saved, not yet parsed        (تم الرفع)
+  PROCESSING // parsing + normalizing in progress (جاري التحليل)
+  PROCESSED // parsed + normalized rows written   (تم التحليل)
+  FAILED // parsing/validation failed             (فشل التحليل)
 }
 
 /// Performance bucket for a site in a given month, derived from

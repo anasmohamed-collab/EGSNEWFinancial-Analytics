@@ -89,6 +89,7 @@ function buildRowsForPeriod(factor: number): {
       salaries,
       operatingExpenses,
       standard,
+      sheetNet: null,
       sourceRow: i + 2,
     });
 

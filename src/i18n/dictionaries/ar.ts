@@ -167,8 +167,46 @@ const ar = {
     uploadedByCol: "بواسطة",
     statuses: {
       UPLOADED: "تم الرفع",
-      PROCESSED: "تمت المعالجة",
-      FAILED: "فشل",
+      PROCESSING: "جاري التحليل",
+      PROCESSED: "تم التحليل",
+      FAILED: "فشل التحليل",
+    },
+    processFailed: "تعذّرت معالجة الملف. راجع الأخطاء التالية.",
+    // Arabic names of the logical columns, used in validation messages.
+    fields: {
+      siteName: "اسم الموقع",
+      clientName: "العميل",
+      contractValue: "التعاقد",
+      grossCollection: "التحصيل",
+      salaries: "المرتبات",
+      operatingExpenses: "مصاريف التشغيل",
+      net: "الصافي",
+      standard: "الاستاندرد",
+    },
+    // Validation / parse messages. {row} {site} {columns} {detected} {fields}
+    // are replaced at runtime.
+    errors: {
+      noFile: "لم يتم اختيار ملف.",
+      badMonth: "اختر شهراً صحيحاً.",
+      badYear: "اختر سنة صحيحة.",
+      tooLarge: "حجم الملف يتجاوز الحد المسموح (١٠ ميجابايت).",
+      badType: "يُقبل فقط ملفات Excel بامتداد ‎.xlsx أو ‎.xls.",
+      unauthorized: "غير مصرح بالدخول.",
+      viewerForbidden: "لا يمكن للمستخدم من نوع «مشاهد» رفع الملفات.",
+      noWorksheet: "الملف لا يحتوي على أي ورقة عمل.",
+      noDataRows: "ورقة العمل لا تحتوي على بيانات.",
+      noHeaderRow:
+        "تعذّر العثور على صف العناوين المطلوب (اسم الموقع، التحصيل، المرتبات، مصاريف التشغيل).",
+      missingColumns: "الأعمدة المطلوبة غير موجودة: {columns}. العناوين المكتشفة: {detected}.",
+      rowMissingSite: "الصف {row}: اسم الموقع مفقود — تم تخطي الصف.",
+      rowInvalidNumber: "الصف {row} ({site}): قيم رقمية غير صحيحة في: {fields}.",
+      noValidRows: "لم يتم العثور على أي صف موقع صحيح في الملف.",
+      netMismatch:
+        "الصف {row} ({site}): الصافي في الملف يختلف عن الصافي المحسوب — تم اعتماد القيمة المحسوبة.",
+      standardMissing: "الصف {row} ({site}): لا يوجد استاندرد — تم استخدام القيمة الافتراضية/السابقة.",
+      standardColumnMissing:
+        "لا يوجد عمود «الاستاندرد» في الملف — تم الاعتماد على الاستاندرد المُعرّف مسبقاً لكل موقع.",
+      processingError: "حدث خطأ أثناء تطبيع البيانات.",
     },
   },
   analysis: {

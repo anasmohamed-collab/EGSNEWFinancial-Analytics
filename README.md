@@ -148,24 +148,34 @@ Open <http://localhost:3000> and sign in with the seeded admin:
 
 ## The monthly Excel format
 
-The parser reads the **first worksheet**. Header matching is tolerant
-(case-insensitive, ignores punctuation, accepts aliases). One row per site:
+The parser ([`excelBudgetParserService`](src/lib/services/excelBudgetParserService.ts))
+reads the **first worksheet** and **auto-detects the header row** (title rows,
+blank rows, or notes above the table are fine). Header matching is tolerant —
+case-insensitive, punctuation-insensitive, light Arabic normalization, and
+accepts **Arabic or English** aliases. One row per site:
 
-| Column | Required | Aliases accepted |
-| --- | --- | --- |
-| Site Name | ✅ | site, project, location |
-| Client | — | customer |
-| Contract Value | ✅ | contract |
-| Gross Collection | ✅ | collection, revenue |
-| Salaries | ✅ | salary, wages, payroll |
-| Operating Expenses | ✅ | opex, expenses, operating |
-| Standard | — | target, std |
+| Column | Required | Arabic aliases | English aliases |
+| --- | --- | --- | --- |
+| Site Name | ✅ | اسم الموقع، الموقع، المشروع | site, project, location |
+| Client | — | العميل، اسم العميل | client, customer |
+| Contract Value | — | التعاقد، قيمة التعاقد | contract |
+| Gross Collection | ✅ | التحصيل، إجمالي التحصيل | gross collection, revenue |
+| Salaries | ✅ | المرتبات، الرواتب، الأجور | salaries, wages, payroll |
+| Operating Expenses | ✅ | مصاريف التشغيل، المصروفات التشغيلية | operating expenses, opex |
+| Net | — | الصافي، صافي الربح | net (cross-checked vs computed) |
+| Standard | — | الاستاندرد، المستهدف، الهدف | standard, target |
 
-- Numeric cells may contain commas, currency symbols, or `(parentheses)` for
-  negatives.
-- Rows named `Total`/`Sum` and blank rows are skipped.
-- If `Standard` is omitted, the standard is resolved from **standards history**
-  or the site's **default standard**.
+- Numeric cells may contain commas, currency symbols, `(parentheses)` for
+  negatives, or **Arabic-Indic digits** (٠١٢٣…).
+- Rows named `الإجمالي` / `Total` / `Sum`, blank rows, and label-only note rows
+  are **skipped safely** — the sheet never breaks on extra content.
+- **Net** is always computed deterministically (`gross − salaries − opex`); if a
+  Net column disagrees, a warning is recorded and the computed value is used.
+- If `Standard` is omitted, it is resolved from **standards history** or the
+  site's **default standard** (a warning is recorded).
+- Validation errors are returned as **clear Arabic messages**.
+
+Upload status lifecycle: `تم الرفع` → `جاري التحليل` → `تم التحليل` / `فشل التحليل`.
 
 A ready-to-test sample sheet is generated at
 `storage/uploads/budget-2026-01.xlsx` when you run the seed.
@@ -267,3 +277,4 @@ docker-compose.yml       # local PostgreSQL
 | `npm run db:studio` | Open Prisma Studio |
 | `npm run db:reset` | Drop, re-migrate, and re-seed |
 | `npm run typecheck` | TypeScript check |
+| `npm test` | Run the unit tests (calculations + parser) |
