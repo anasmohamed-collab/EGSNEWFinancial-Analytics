@@ -1,0 +1,4 @@
+# Keep shell scripts LF so they run correctly inside Linux containers,
+# regardless of the committer's OS (Windows CRLF would break the shebang).
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
