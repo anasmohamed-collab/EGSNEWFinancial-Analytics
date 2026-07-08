@@ -26,20 +26,37 @@ forms, NVIDIA AI, CI pipeline.
 
 ---
 
-## 1. Required environment variables
+## 1. Environment variables (audited & minimized)
 
-| Variable | Required | Production value / notes |
+**Absolute minimum to run in production right now:** `DATABASE_URL` + `AUTH_SECRET`.
+Plus `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD` **only for the one-time admin seed**.
+
+### Set in Dublyo now
+| Variable | Tier | Notes |
 | --- | --- | --- |
-| `DATABASE_URL` | ✅ | Managed Postgres URL; append `&sslmode=require`. Use a pooled URL if the platform is serverless. |
-| `AUTH_SECRET` | ✅ | Long random string (≥ 32 chars). `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
-| `APP_URL` | ✅ | Public HTTPS URL of the app (e.g. `https://budget.eaglesgroup.…`). |
-| `UPLOAD_DIR` | ✅ | Path mounted to a **persistent volume** (e.g. `/app/storage/uploads`). |
-| `SEED_ADMIN_EMAIL` | ✅ (one-time) | Real admin email for the initial seed. |
-| `SEED_ADMIN_PASSWORD` | ✅ (one-time) | Strong password; change after first login. |
-| `NODE_ENV` | ✅ | `production` (enables secure cookies). |
-| `RUN_MIGRATIONS` | optional | Default `true` (entrypoint runs migrations). Set `false` to run them as a separate release step. |
-| `NVIDIA_API_KEY` / `NVIDIA_BASE_URL` / `NVIDIA_MODEL` | ❌ (later) | Placeholders only — leave empty. |
-| `AI_ANALYSIS_ENABLED` | ❌ (later) | Keep `false`. |
+| `DATABASE_URL` | **Required** | Managed Postgres URL; append `&sslmode=require`. Only variable the app truly needs to connect. |
+| `AUTH_SECRET` | **Required** | Long random string (≥ 32). App throws if missing/short. |
+| `SEED_ADMIN_EMAIL` | One-time | Needed only to run `npm run db:seed` (create the first admin). Removable after. |
+| `SEED_ADMIN_PASSWORD` | One-time | Same; change after first login. |
+
+### Optional (safe defaults — set only to override)
+| Variable | Default | When to set |
+| --- | --- | --- |
+| `NODE_ENV` | `production` (auto-set by `next start`) | Rarely needed. |
+| `UPLOAD_DIR` | `./storage/uploads` → `/app/storage/uploads` (the VOLUME) | Only if the volume mounts at a different path. |
+| `RUN_MIGRATIONS` | `true` (entrypoint runs `migrate deploy`) | Set `false` to migrate as a separate release step. |
+
+### Do NOT set in Dublyo
+| Variable | Why |
+| --- | --- |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | **Local docker-compose only** — they configure the local Postgres container. Production uses `DATABASE_URL`. Delete these in the Dublyo UI. |
+| `APP_URL` | Not referenced anywhere in the app yet. |
+| `NVIDIA_API_KEY` / `NVIDIA_BASE_URL` / `NVIDIA_MODEL` / `AI_ANALYSIS_ENABLED` | AI not implemented — future step. |
+
+> Dublyo auto-detected 14 keys because it scanned **both** `docker-compose.yml`
+> (the `POSTGRES_*`) **and** `.env.example`. Those extra keys are now commented
+> out in `.env.example`; the `POSTGRES_*` remain in `docker-compose.yml` for local
+> dev only — **delete them from the Dublyo variables list.**
 
 ---
 
