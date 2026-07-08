@@ -1,10 +1,38 @@
-# AI Usage — NVIDIA Executive Explanation Layer (Phase 1)
+# AI Usage — NVIDIA Explanation Layer
 
 ## What it is
-An **explanation-only** AI layer that writes a short **Arabic** narrative for the
-Board of Directors, based on the month's **already-calculated** figures. It answers:
-هل كسب الشهر أم خسر مقابل الاستاندرد؟ · نسبة تحقيق الاستاندرد · الفجوة عن الاستاندرد ·
-الموقع صاحب أكبر ضغط · أفضل موقع · هل الأداء يتحسن أم يتراجع · أهم 3 مشاكل · أهم 3 توصيات.
+An **explanation-only** AI layer with two surfaces:
+
+1. **Phase 1 — Executive explanation panel** (`/executive`): writes a short
+   **Arabic** narrative for the Board, based on the month's **already-calculated**
+   figures. It answers: هل كسب الشهر أم خسر مقابل الاستاندرد؟ · نسبة تحقيق الاستاندرد ·
+   الفجوة عن الاستاندرد · الموقع صاحب أكبر ضغط · أفضل موقع · هل الأداء يتحسن أم يتراجع ·
+   أهم 3 مشاكل · أهم 3 توصيات.
+2. **Phase 2 — «مساعد الإدارة الذكي»** (`/assistant`): an Arabic-first management
+   Q&A chat. Management picks a scope (شهر محدد · آخر 4 شهور · آخر 6 شهور ·
+   السنة كاملة · كل الشهور · فترة مخصصة), asks a simple question
+   (e.g. "هل شهر يناير كان كويس؟" · "إيه سبب ضعف الشهر؟" · "مين أفضل موقع؟" ·
+   "قارن آخر 4 شهور" · "هل في موقع متكرر تحت الاستاندرد؟"), and gets a structured
+   Arabic answer: **الإجابة المختصرة · الدليل من الأرقام · ماذا يعني ذلك للإدارة؟ · التوصية**.
+
+### What data the assistant can access
+Before any AI call, the backend builds a **read-only structured context** from the
+existing deterministic services only (`src/lib/analytics.ts`): period totals
+(net / standard / variance / achievement %), monthly trend, best & worst site,
+biggest negative-variance site, sites repeatedly below standard, top pressured
+sites (capped), salaries / operating / general expense totals, and — for a single
+month — the pre-computed change vs the previous month. That JSON context is the
+**only** thing the model sees.
+
+### What the assistant cannot do
+- It cannot query the database (it never gets a connection or a query tool).
+- It never sees raw Excel files, user credentials, or `NVIDIA_API_KEY`.
+- It cannot calculate or change numbers: the answer schema is **text-only**, and a
+  response containing numeric fields fails validation → deterministic fallback.
+- Questions outside the budget data get a fixed answer with **no provider call**:
+  «السؤال خارج نطاق بيانات الميزانية المتاحة حاليًا.»
+- A deterministic Arabic **question classifier** (keyword-based, no AI) routes each
+  question; period mentions in the question ("قارن آخر 4 شهور") override the scope.
 
 ## What it is NOT — the safety guarantees
 - **AI never computes, recalculates, or changes any number.** All financial math
@@ -25,10 +53,16 @@ Board of Directors, based on the month's **already-calculated** figures. It answ
 | File | Role |
 | --- | --- |
 | `src/lib/ai/config.ts` | Reads env safely (`isAiEnabled()`, `aiProviderConfig()`); never throws. |
-| `src/lib/ai/prompt.ts` | Types + safe prompt builder + strict output schema (text-only) + parser. |
+| `src/lib/ai/prompt.ts` | Executive types + safe prompt builder + strict text-only schema + parser. |
+| `src/lib/ai/executiveInput.ts` | Pure mapper: MonthlyAnalysis → ExecutiveAiInput (shared by route + board report). |
 | `src/lib/services/aiExecutiveAnalysisService.ts` | Calls NVIDIA; validates; deterministic fallback. |
 | `src/app/api/ai/executive-summary/route.ts` | Auth → load DB metrics → build input → call service. |
 | `src/components/executive-ai-panel.tsx` | Optional panel «توضيح الإدارة بالذكاء الاصطناعي». |
+| `src/lib/ai/assistant.ts` | Assistant: Arabic question classifier + scope hints + prompt + text-only answer schema. |
+| `src/lib/ai/assistantContext.ts` | Pure builders: analytics read-models → read-only AI context. |
+| `src/lib/services/aiAssistantService.ts` | Assistant service: out-of-scope guard, NVIDIA call, deterministic fallback. |
+| `src/app/api/ai/assistant/route.ts` | Auth → validate question+scope → load computed analysis → call service. |
+| `src/app/(app)/assistant/page.tsx` + `src/components/assistant-chat.tsx` | «مساعد الإدارة الذكي» chat page (RTL, suggested questions, scope picker). |
 
 ## Environment variables
 Only these four are used (see `.env.example` section 5):
@@ -71,12 +105,28 @@ Missing key → AI silently disabled (app never crashes).
 - **Resilience:** with AI enabled but a bad key/model, clicking the button returns
   the **deterministic Arabic fallback** (source `fallback`) — never an error page.
 
+## Verify the assistant («مساعد الإدارة الذكي»)
+- **Disabled:** `/assistant` shows only
+  **"مساعد الذكاء الاصطناعي غير مفعل حاليًا."** — no input, no network call.
+- **Enabled:** pick a scope, click a suggested question (e.g. **لخص الشهر**) →
+  a structured Arabic answer (الإجابة المختصرة / الدليل من الأرقام / ماذا يعني ذلك
+  للإدارة؟ / التوصية).
+- **Out of scope:** ask something non-financial (e.g. "اكتب لي قصيدة") →
+  **"السؤال خارج نطاق بيانات الميزانية المتاحة حاليًا."** with no NVIDIA call.
+- **Resilience:** with a bad key/model, answers fall back to the deterministic
+  Arabic explanation with a small notice — the dashboard is never blocked.
+- **No data:** a scope with no uploaded months returns
+  **"لا توجد بيانات للفترة المختارة."**
+
 ## Test it safely (no network, no key)
 ```
 npm test
 ```
-Covers: AI-disabled mode, missing key, prompt builder contains only provided
-metrics + safety rules, and fallback on API error / non-200 / invalid JSON.
+Covers (both layers): AI-disabled mode, missing key, out-of-scope questions never
+call the provider, prompt/request body contains only structured metrics and no
+secrets, fallback on API error / non-200 / invalid JSON, the text-only schema
+rejecting numeric AI output, the Arabic question classifier, and scope hints
+("قارن آخر 4 شهور" → last-4-months scope).
 
 ## Cost / behavior
 - The panel is **button-triggered** (not auto-run) so NVIDIA is only called when a

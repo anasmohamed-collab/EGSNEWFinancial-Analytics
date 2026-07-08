@@ -2,8 +2,11 @@ import { PrintButton } from "@/components/print-button";
 import {
   getLatestPeriod,
   getMonthlyAnalysis,
+  previousPeriod,
   recommendationKey,
 } from "@/lib/analytics";
+import { buildExecutiveAiInput } from "@/lib/ai/executiveInput";
+import { buildDeterministicFallback } from "@/lib/services/aiExecutiveAnalysisService";
 import { getI18n } from "@/i18n/server";
 import {
   formatCurrency,
@@ -15,6 +18,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * تقرير مجلس الإدارة — printable board report.
+ * Page 1 is the board summary: verdict vs standard, headline KPIs, best/worst
+ * site, main deviation reason, top-3 problems / recommendations (deterministic,
+ * built ONLY from the already-calculated figures — no AI call), and a simple
+ * net-vs-standard chart. Detailed tables are moved to an appendix page.
+ */
 export default async function ExecutiveReportPage({
   searchParams,
 }: {
@@ -31,6 +41,15 @@ export default async function ExecutiveReportPage({
   const recKey = recommendationKey(summary.standardAchievementPercentage);
   const worst = highlights.biggestNegativeVariance;
   const hasDeviation = !!worst && worst.varianceVsStandard < 0;
+  const aboveStandard = summary.totalVarianceVsStandard >= 0;
+
+  // Deterministic top-3 problems/recommendations from the computed figures
+  // (same builder used as the AI fallback — no AI call, no new math).
+  const prev = previousPeriod(month, year);
+  const prevAnalysis = a.hasData ? await getMonthlyAnalysis(prev.month, prev.year) : null;
+  const narrative = a.hasData
+    ? buildDeterministicFallback(buildExecutiveAiInput(a, prevAnalysis))
+    : null;
 
   const kpis: { label: string; value: string }[] = [
     { label: dict.metrics.totalNet, value: formatCurrency(summary.totalNet, locale) },
@@ -40,6 +59,10 @@ export default async function ExecutiveReportPage({
     { label: dict.metrics.finalNet, value: formatCurrency(summary.finalNetAfterGeneral, locale) },
     { label: dict.metrics.generalExpenses, value: formatCurrency(summary.totalGeneralExpenses, locale) },
   ];
+
+  // Simple print-friendly chart data: top sites by net, bars relative to max.
+  const chartSites = [...a.sites].sort((x, y) => y.net - x.net).slice(0, 8);
+  const chartMax = Math.max(1, ...chartSites.flatMap((s) => [s.net, s.standard]));
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -51,7 +74,7 @@ export default async function ExecutiveReportPage({
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold">{dict.common.companyName}</h1>
-              <p className="text-lg font-semibold text-gray-700">{dict.report.title}</p>
+              <p className="text-lg font-semibold text-gray-700">{dict.report.boardTitle}</p>
             </div>
             <div className="text-sm text-gray-600">
               <p>
@@ -71,6 +94,21 @@ export default async function ExecutiveReportPage({
           <p className="py-10 text-center text-gray-500">{dict.common.noData}</p>
         ) : (
           <>
+            {/* Verdict: above/below standard */}
+            <section
+              className={`mb-6 rounded-md border-2 p-4 text-center ${
+                aboveStandard ? "border-emerald-700 bg-emerald-50" : "border-red-700 bg-red-50"
+              }`}
+            >
+              <p className={`text-xl font-bold ${aboveStandard ? "text-emerald-800" : "text-red-800"}`}>
+                {aboveStandard ? dict.report.verdictAbove : dict.report.verdictBelow}
+              </p>
+              <p className="mt-1 text-sm text-gray-700">
+                {dict.metrics.variance}: {formatSigned(summary.totalVarianceVsStandard, locale)} ·{" "}
+                {dict.metrics.achievement}: {formatPercent(summary.standardAchievementPercentage)}
+              </p>
+            </section>
+
             {/* KPI grid */}
             <section className="mb-6">
               <h2 className="mb-3 text-base font-bold">{dict.report.summary}</h2>
@@ -84,12 +122,26 @@ export default async function ExecutiveReportPage({
               </div>
             </section>
 
-            {/* Best / worst / deviation / recommendation */}
+            {/* Best / worst / deviation */}
             <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <ReportRow label={dict.executive.bestSite} value={highlights.bestSite?.siteName ?? "—"} />
-              <ReportRow label={dict.executive.worstSite} value={highlights.worstSite?.siteName ?? "—"} />
               <ReportRow
-                label={dict.executive.deviationReason}
+                label={dict.executive.bestSite}
+                value={
+                  highlights.bestSite
+                    ? `${highlights.bestSite.siteName} (${formatPercent(highlights.bestSite.standardAchievementPercentage)})`
+                    : "—"
+                }
+              />
+              <ReportRow
+                label={dict.executive.worstSite}
+                value={
+                  highlights.worstSite
+                    ? `${highlights.worstSite.siteName} (${formatPercent(highlights.worstSite.standardAchievementPercentage)})`
+                    : "—"
+                }
+              />
+              <ReportRow
+                label={dict.report.mainDeviationReason}
                 value={
                   hasDeviation
                     ? `${worst!.siteName} (${formatSigned(worst!.varianceVsStandard, locale)})`
@@ -99,14 +151,74 @@ export default async function ExecutiveReportPage({
               />
             </section>
 
+            {/* Top 3 problems / recommendations (deterministic) */}
+            {narrative && (
+              <section className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-md border border-gray-200 p-4">
+                  <p className="text-sm font-bold">{dict.report.topProblems}</p>
+                  <ol className="mt-2 list-decimal space-y-1 pe-5 text-sm leading-relaxed">
+                    {narrative.topThreeProblems.map((p, i) => (
+                      <li key={i}>{p}</li>
+                    ))}
+                  </ol>
+                </div>
+                <div className="rounded-md border border-gray-200 p-4">
+                  <p className="text-sm font-bold">{dict.report.topRecommendations}</p>
+                  <ol className="mt-2 list-decimal space-y-1 pe-5 text-sm leading-relaxed">
+                    {narrative.topThreeRecommendations.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ol>
+                </div>
+              </section>
+            )}
+
+            {/* Management recommendation */}
             <section className="mb-6 rounded-md border-2 border-gray-800 p-4">
               <p className="text-sm font-bold">{dict.executive.recommendation}</p>
               <p className="mt-1 leading-relaxed">{dict.executive.recommendations[recKey]}</p>
             </section>
 
-            {/* Site summary table */}
-            <section>
-              <h2 className="mb-2 text-base font-bold">{dict.dashboard.siteBreakdown}</h2>
+            {/* Simple net vs standard chart (print-friendly HTML bars) */}
+            <section className="mb-6">
+              <h2 className="mb-3 text-base font-bold">{dict.report.chartTitle}</h2>
+              <div className="space-y-2">
+                {chartSites.map((s) => (
+                  <div key={s.id} className="text-xs">
+                    <p className="mb-0.5 font-medium">{s.siteName}</p>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 flex-1 rounded-sm bg-gray-100">
+                          <div
+                            className="h-3 rounded-sm bg-gray-800"
+                            style={{ width: `${Math.max(1, Math.round((s.net / chartMax) * 100))}%` }}
+                          />
+                        </div>
+                        <span className="w-28 shrink-0 tabular-nums text-gray-700">
+                          {dict.metrics.net}: {formatCurrency(s.net, locale)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-3 flex-1 rounded-sm bg-gray-100">
+                          <div
+                            className="h-3 rounded-sm border border-gray-500 bg-gray-300"
+                            style={{ width: `${Math.max(1, Math.round((s.standard / chartMax) * 100))}%` }}
+                          />
+                        </div>
+                        <span className="w-28 shrink-0 tabular-nums text-gray-500">
+                          {dict.metrics.standard}: {formatCurrency(s.standard, locale)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Appendix: detailed table on its own printed page */}
+            <section className="break-before-page border-t border-gray-300 pt-6">
+              <h2 className="mb-1 text-base font-bold">{dict.report.appendix}</h2>
+              <p className="mb-3 text-xs text-gray-500">{dict.report.appendixNote}</p>
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b-2 border-gray-400 text-gray-600">

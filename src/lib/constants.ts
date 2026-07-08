@@ -59,6 +59,7 @@ export const SITE_TYPES = [
 /** Navigation. `key` indexes dict.nav; the Executive board is first (default). */
 export const NAV_ITEMS = [
   { href: "/executive", key: "executive", icon: "Crown" },
+  { href: "/assistant", key: "assistant", icon: "Sparkles" },
   { href: "/dashboard", key: "dashboard", icon: "LayoutDashboard" },
   { href: "/analysis", key: "analysis", icon: "TrendingUp" },
   { href: "/upload", key: "upload", icon: "Upload" },

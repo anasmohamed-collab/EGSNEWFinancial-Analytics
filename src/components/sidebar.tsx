@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Crown,
+  Sparkles,
   LayoutDashboard,
   TrendingUp,
   Upload,
@@ -20,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
   Crown,
+  Sparkles,
   LayoutDashboard,
   TrendingUp,
   Upload,
