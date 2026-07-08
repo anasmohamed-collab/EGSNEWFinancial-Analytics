@@ -289,6 +289,25 @@ const en: Dictionary = {
     board: "Board of Directors",
     summary: "Executive Summary",
   },
+  ai: {
+    title: "AI Management Explanation",
+    disabled: "AI analysis is currently disabled.",
+    generate: "Generate management explanation",
+    generating: "Generating analysis…",
+    regenerate: "Regenerate",
+    disclaimer:
+      "Automated explanation based on the official numbers above — it does not change them or add new numbers. All figures remain computed by the system.",
+    poweredBy: "AI-generated",
+    keyInsight: "Key insight",
+    mainProblem: "Biggest pressure",
+    problems: "Top problems",
+    recommendations: "Top management recommendations",
+    riskLevel: "Risk level",
+    boardMessage: "Message to the Board",
+    failed: "Could not generate the analysis now. The official numbers are unaffected.",
+    noData: "No data for this month.",
+    error: "An error occurred contacting the analysis service.",
+  },
 };
 
 export default en;

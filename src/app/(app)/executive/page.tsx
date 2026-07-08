@@ -6,8 +6,10 @@ import { StatCard } from "@/components/stat-card";
 import { SiteTable } from "@/components/site-table";
 import { NetVsStandardChart } from "@/components/charts/net-vs-standard-chart";
 import { DetailsToggle } from "@/components/details-toggle";
+import { ExecutiveAiPanel } from "@/components/executive-ai-panel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { isAiEnabled } from "@/lib/ai/config";
 import {
   getAvailablePeriods,
   getLatestPeriod,
@@ -169,6 +171,9 @@ export default async function ExecutivePage({
               </CardContent>
             </Card>
           </div>
+
+          {/* AI explanation — separate from the official numbers above. */}
+          <ExecutiveAiPanel month={month} year={year} aiEnabled={isAiEnabled()} />
 
           {/* Details hidden by default (executive UX rule) */}
           <Card>
