@@ -11,5 +11,10 @@ else
   echo "[entrypoint] RUN_MIGRATIONS=false — skipping migrations."
 fi
 
+# Ensure an ADMIN user exists (idempotent; skips if already present or if
+# SEED_ADMIN_* are not set). Never blocks startup.
+echo "[entrypoint] Ensuring admin user exists..."
+node scripts/create-admin.cjs
+
 echo "[entrypoint] Starting application..."
 exec "$@"

@@ -50,6 +50,9 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.mjs ./next.config.mjs
 
+# Ops scripts (admin bootstrap) — plain Node, uses production deps only.
+COPY scripts ./scripts
+
 # Entrypoint (runs migrations, then starts the server).
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh \

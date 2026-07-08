@@ -114,11 +114,21 @@ Point the platform's health probe at `/api/health`.
       (or run `npm run db:deploy` as a release step with `RUN_MIGRATIONS=false`).
 - [ ] Seed the real admin once: `npm run db:seed` (or a one-off task).
 
+**Admin bootstrap (automatic)**
+- The container entrypoint runs `node scripts/create-admin.cjs` on boot: it
+  creates the ADMIN from `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` **only if it
+  does not already exist** (idempotent; never wipes data, never inserts demo data).
+- So just set `SEED_ADMIN_EMAIL` + `SEED_ADMIN_PASSWORD` and redeploy — no manual
+  seed step needed. (Manual equivalent: `npm run db:create-admin`.)
+- The full demo seed (`npm run db:seed`) is **local/dev only** — it deletes data
+  and inserts demo rows, and needs `tsx` (a dev dependency).
+
 **Verify (post-deploy)**
 - [ ] **Health check:** `curl https://<APP_URL>/api/health` → `200` and
       `"database":"up"`.
-- [ ] **First login test:** open `/login`, sign in with the seeded admin →
-      lands on `/executive` (Arabic RTL). Then change the admin password.
+- [ ] **First login test:** open `/login`, sign in with `SEED_ADMIN_EMAIL` /
+      `SEED_ADMIN_PASSWORD` → lands on `/executive` (Arabic RTL). Then change the
+      admin password.
 - [ ] **First Excel upload test:** go to **رفع ملف Excel**, pick month/year,
       upload a real sheet → status reaches **تم التحليل** → redirected to the
       monthly analysis with correct Net-vs-Standard numbers.
