@@ -10,6 +10,8 @@ function isPublic(pathname: string): boolean {
     return true;
   // Public API for auth + Next internals + static assets.
   if (pathname.startsWith("/api/auth")) return true;
+  // Public health probe for container/PaaS orchestration.
+  if (pathname === "/api/health") return true;
   return false;
 }
 
